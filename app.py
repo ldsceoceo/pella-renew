@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+                      
+                       
 """
 PellaFree 自动续期（GitHub Actions + patchright 真浏览器过广告链）。
 
@@ -24,26 +24,26 @@ except ImportError:
     from playwright.sync_api import sync_playwright
     USING_PATCHRIGHT = False
 
-# --- 环境变量（单账号，eooce 基座原样） ---
+                              
 EMAIL        = os.environ.get('EMAIL') or ""
 PASSWORD     = os.environ.get('PASSWORD') or ""
-COOKIE_VALUE = os.environ.get('COOKIE_VALUE') or ""  # Pella __session JWT，Cookie 优先
+COOKIE_VALUE = os.environ.get('COOKIE_VALUE') or ""                                 
 TG_CHAT_ID   = os.environ.get('TG_CHAT_ID') or ""
 TG_BOT_TOKEN = os.environ.get('TG_BOT_TOKEN') or ""
 
-# --- 代理配置（由工作流 shell 脚本写入 $GITHUB_ENV）---
+                                          
 IS_PROXY      = os.environ.get('IS_PROXY', 'false').lower() == 'true'
 PROXY_SERVER  = os.environ.get('PROXY_SERVER') or "http://127.0.0.1:1081"
 REQUESTS_PROXIES = {"http": PROXY_SERVER, "https": PROXY_SERVER} if IS_PROXY else None
 
-# --- Pella 常量 ---
+                  
 API = "https://api.pella.app"
 WEB = "https://www.pella.app"
 CLERK_API_VERSION = "2025-11-10"
-CLERK_JS_VERSION = "5.125.3"  # Worker 已验证可登录
+CLERK_JS_VERSION = "5.125.3"                 
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
-# Cloudflare 整页挑战 / Turnstile 组件共用的 iframe 选择器（eooce 模板原样）
+                                                          
 CF_IFRAME_SELECTOR = 'iframe[src*="challenges.cloudflare.com"]'
 
 if sys.platform == 'win32':
@@ -105,8 +105,7 @@ def send_telegram_notification(title, status_lines, email, current_ip="未知"):
         log(f"❌ Telegram 通知异常: {e}")
         return False
 
-# ==================== CF 过盾 helpers（eooce 模板原样照抄） ====================
-
+                                                                       
 def _get_turnstile_token(page):
     try:
         return page.evaluate(
@@ -332,8 +331,7 @@ def new_account_page(browser):
         page.add_init_script(STEALTH_JS)
     return ctx, page
 
-# ==================== Pella API（Worker 登录逻辑移植） ====================
-
+                                                                    
 def api_login(email, password):
     """Clerk 账密登录，返回 JWT（即 __session cookie 值，60s 有效，用完即换）。
     每次用全新 Session：复用旧 Session 会因残留 __client 被 Clerk 判 session_exists (400)。"""
@@ -346,7 +344,7 @@ def api_login(email, password):
             data={'locale': 'zh-CN', 'identifier': email, 'password': password, 'strategy': 'password'},
             timeout=20, proxies=REQUESTS_PROXIES)
         if r.status_code != 200:
-            # Clerk 已登录态会回 400 session_exists，但包里常带可用 session，直接捡回来
+                                                                   
             try:
                 err_data = r.json()
             except Exception:
@@ -369,7 +367,7 @@ def api_login(email, password):
         if not sid:
             log("❌ 登录成功但无 session")
             return None
-        # touch 兜底
+                  
         r2 = session.post(
             f"https://clerk.pella.app/v1/client/sessions/{sid}/touch?__clerk_api_version={CLERK_API_VERSION}&_clerk_js_version={CLERK_JS_VERSION}",
             headers={'Content-Type': 'application/x-www-form-urlencoded',
@@ -392,7 +390,7 @@ def api_headers(jwt):
     return {'Authorization': f'Bearer {jwt}', 'Content-Type': 'application/json',
             'Origin': WEB, 'Referer': f'{WEB}/', 'User-Agent': UA}
 
-JWT_TTL = 50  # JWT 60s 有效，50s 内复用，不重复打登录接口
+JWT_TTL = 50                               
 
 def fresh_jwt(session, email, password, cookie, auth):
     """auth 为 {'jwt','ts'} 就地更新：新鲜直接复用，过期才重登。"""
@@ -472,8 +470,7 @@ def ensure_pella_auth(ctx, jwt):
         except Exception:
             pass
 
-# ==================== 广告链（录制三幕：Continue→Turnstile→倒计时→/go/） ====================
-
+                                                                                 
 def click_first_visible(page, selectors, timeout_each=8000):
     """通用单次点击（第1页 Continue 用）。"""
     for sel in selectors:
@@ -499,7 +496,7 @@ def verify_solve_then_click_robot(page, tag):
         page.screenshot(path=f"ad_no_robot_{tag}.png")
         log(f"❌ [{tag}] 验证页未出现（无 not a robot 文案）")
         return False
-    # 先解盾：等出 Success!/token（自过或点框），再碰按钮
+                                       
     if not solve_modal_turnstile(page, timeout=90):
         page.screenshot(path=f"ad_no_robot_{tag}.png")
         log(f"❌ [{tag}] Turnstile 未通过，不点按钮")
@@ -593,7 +590,7 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
     handle_cloudflare(page, timeout=120)
     time.sleep(2)
 
-    # 第1页："Please click the button below to continue." → 点 Continue（截图1）
+                                                                        
     used = click_first_visible(page, ['button:has-text("Continue"):visible', '#submit-button'])
     if not used:
         page.screenshot(path=f"ad_no_continue_{tag}.png")
@@ -601,24 +598,24 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
         return False
     log(f"🖱️ [{tag}] 已点 Continue ({used})，进验证页")
 
-    # 第2页：先解盾出 Success → 再点 I am not a robot（截图2，录制顺序）
+                                                      
     if not verify_solve_then_click_robot(page, tag):
         return False
     log(f"🖱️ [{tag}] 已点 I am not a robot，进倒计时")
 
-    # 第3页：等倒计时走完（截图：0 Seconds + Go → 按钮），点 Go（submit 表单提交，非 a 链接）
+                                                                 
     time.sleep(10)
-    # Go 点击前先注入登录态：裸奔进 /renew/<id> 会被路由守卫踢回首页（10-11 起加严）
+                                                        
     jwt_pre = fresh_jwt(session, email, password, cookie, auth)
     if jwt_pre:
         ensure_pella_auth(ctx, jwt_pre)
         log(f"🔑 [{tag}] Go 前已注入登录态")
-    # 第4步：点 Go → 跟跳（本页或新标签）→ 落 pella /renew/；中途 Shrinkearn 中转顺手过掉
+                                                                 
     dest = ''
     go_page = page
     deadline = time.time() + 180
     while time.time() < deadline:
-        # A. 终点已出现（本页或新标签）？
+                           
         for pg in ctx.pages:
             try:
                 u = pg.url or ''
@@ -629,7 +626,7 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
                 break
         if dest:
             break
-        # B. 点 Go 按钮（#submit-button.vhit，文字 Go →）
+                                                 
         for sel in ['button:has-text("Go"):visible', '#submit-button:visible']:
             try:
                 loc = page.locator(sel).first
@@ -641,7 +638,7 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
                 break
             except Exception:
                 continue
-        # C. 兜底：直接露出 /go/ 直链
+                            
         try:
             loc = page.locator('a[href*="/go/"]:visible').first
             if loc.count() > 0:
@@ -654,11 +651,11 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
         handle_shrinkearn(page, tag)
         time.sleep(3)
     if not dest:
-        # 兜底：id 即 /renew/:renewId（前端 bundle 实证），直接拼领奖页，不依赖跳转捕获
+                                                              
         dest = f"{WEB}/renew/{lid}"
         log(f"⚠️ [{tag}] 未捕获跳转，用 id 直拼: {dest[:80]}")
     if '/go/' in dest and 'pella.app' not in dest:
-        # /go/ 本身是中转，手动跟过去再等落点
+                              
         try:
             go_page.goto(dest, wait_until="domcontentloaded", timeout=60000)
         except Exception as e:
@@ -683,7 +680,7 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
     page = go_page
     log(f"🔗 [{tag}] 终点: {dest}")
 
-    # 临用前换新鲜 JWT（前端 /renew/:id 落页 2s 自动 claim）；50s 内直接复用
+                                                        
     jwt = fresh_jwt(session, email, password, cookie, auth)
     if not jwt:
         log(f"❌ [{tag}] 领奖前登录失败")
@@ -715,8 +712,7 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
     log(f"❌ [{tag}] 领奖未确认（claimed 仍 false）")
     return False
 
-# ==================== 主流程（单账号） ====================
-
+                                                    
 def main():
     log(f"🔍 凭证检测: COOKIE_VALUE={'已配置' if COOKIE_VALUE else '未配置'}, "
         f"EMAIL={'已配置' if EMAIL else '未配置'}, PASSWORD={'已配置' if PASSWORD else '未配置'}")
@@ -789,7 +785,7 @@ def process_account(browser, email, password, cookie, current_ip):
             time.sleep(1)
             info = api_get_info(session, jwt, sid)
             before = info.get('expiry') or srv.get('expiry')
-            links = [l for l in (info.get('renew_links') or []) if l.get('reward') == 24]  # 只要24H cuty，32H srnky砍掉
+            links = [l for l in (info.get('renew_links') or []) if l.get('reward') == 24]                          
             unclaimed = [l for l in links if not l.get('claimed')]
             if not links:
                 lines.append(f"{name} | IP: {ip} | 剩余: {calc_remaining(before)} | 无24H广告")

@@ -3,7 +3,7 @@ name: Auto Renew PellaFree
 on:
   workflow_dispatch:
   schedule:
-    - cron: '10 */12 * * *' # 广告链接 24h 一换，每天跑两遍兜底
+    - cron: '10 */12 * * *'
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ permissions:
 jobs:
   renew-pella:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45 # 多账号×双链×倒计时，放宽
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -56,7 +56,6 @@ jobs:
           name: fail-shots
           path: "*.png"
 
-      # 更新时间到time.txt,避免6个月未更新导致工作流暂停
       - name: 🕒 更新时间
         run: |
           git config user.name "github-actions[bot]"
