@@ -581,6 +581,9 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
     lid = link.get('id', '')
     reward = link.get('reward', '?')
     tag = f"{server_id[:8]}-{reward}H"
+    if not lid or not alias:
+        log(f"❌ [{tag}] renew_links 缺 id/link，跳过")
+        return False
     log(f"➡ [{tag}] 打开广告链: {alias}")
     try:
         page.goto(alias, wait_until="domcontentloaded", timeout=60000)
@@ -605,6 +608,11 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
 
     # 第3页：等倒计时走完（截图：0 Seconds + Go → 按钮），点 Go（submit 表单提交，非 a 链接）
     time.sleep(10)
+    # Go 点击前先注入登录态：裸奔进 /renew/<id> 会被路由守卫踢回首页（10-11 起加严）
+    jwt_pre = fresh_jwt(session, email, password, cookie, auth)
+    if jwt_pre:
+        ensure_pella_auth(ctx, jwt_pre)
+        log(f"🔑 [{tag}] Go 前已注入登录态")
     # 第4步：点 Go → 跟跳（本页或新标签）→ 落 pella /renew/；中途 Shrinkearn 中转顺手过掉
     dest = ''
     go_page = page
@@ -646,9 +654,9 @@ def pass_one_link(page, ctx, session, email, password, cookie, server_id, link, 
         handle_shrinkearn(page, tag)
         time.sleep(3)
     if not dest:
-        page.screenshot(path=f"ad_no_go_{tag}.png")
-        log(f"❌ [{tag}] 倒计时后未到终点（无 Go 跳转）")
-        return False
+        # 兜底：id 即 /renew/:renewId（前端 bundle 实证），直接拼领奖页，不依赖跳转捕获
+        dest = f"{WEB}/renew/{lid}"
+        log(f"⚠️ [{tag}] 未捕获跳转，用 id 直拼: {dest[:80]}")
     if '/go/' in dest and 'pella.app' not in dest:
         # /go/ 本身是中转，手动跟过去再等落点
         try:
